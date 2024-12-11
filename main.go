@@ -1,26 +1,41 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"os"
 
+	_ "github.com/lib/pq"
 	"github.com/xsynch/blogaggregator/internal/config"
+	"github.com/xsynch/blogaggregator/internal/database"
 )
 
 func main() {
+	
 	st := &state{}
 	cmds := commands{allCommands: make(map[string]func(*state, command) error)}
 	cmds.register("login",handlerLogin)
+	cmds.register("register",handlerRegister)
+	cmds.register("reset",handleReset)
+	cmds.register("users", handleGetUsers)
 
 	cfgFile, err := config.Read()
 	if err != nil {
 		log.Printf("Error occurred: %s", err)
 
 	}
-	st.Config = cfgFile
+	st.cfg = cfgFile
 	if len(os.Args) < 2{
 		log.Fatalf("At least two arguments are needed\n")
 	}
+	dbURL := st.cfg.DBURL
+	
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatalf("Error opening the database: %s",err)
+	}
+	dbQueries := database.New(db)
+	st.db = dbQueries
 
 	cmdName := os.Args[1]
 	cmdArgs := os.Args[2:]
