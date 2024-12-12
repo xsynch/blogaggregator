@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"html"
 	"log"
 	"time"
 
@@ -117,3 +118,115 @@ func handleGetUsers(s *state, cmd command) error {
 	}
 	return nil 
 }
+
+func handleFetchFeed(s *state, cmd command) error {
+	url := "https://www.wagslane.dev/index.xml"
+	rssFeed, err := fetchFeed(context.Background(), url)
+	if err != nil {
+		return err 
+	}
+	fmt.Printf("%s\n",returnStringFromHTML(rssFeed.Channel.Title))
+	fmt.Printf("%s\n",returnStringFromHTML(rssFeed.Channel.Link))
+	fmt.Printf("%s\n",returnStringFromHTML(rssFeed.Channel.Description))
+	for _,val := range rssFeed.Channel.Item{
+		fmt.Printf("%s\n%s\n%s\n%s\n",returnStringFromHTML(val.Title), returnStringFromHTML(val.Link),returnStringFromHTML(val.Description),returnStringFromHTML(val.PubDate))
+	}
+	return nil 
+}
+
+func returnStringFromHTML(htmlText string) string {
+	return html.UnescapeString(htmlText)
+}
+
+func handleAddFeed(s *state, cmd command) error {
+	if len(cmd.args) != 2 {
+		return fmt.Errorf("%s takes two arguments: %s <name> <url>", cmd.name, cmd.name)
+	}
+	feedName := cmd.args[0]
+	feedURL := cmd.args[1]
+	current_user,err  := s.db.GetUser(context.Background(),s.cfg.CURRENTUSER)
+	if err != nil {
+		return err 
+	}
+	user_id := current_user.ID
+	cfParams :=database.CreateFeedParams{ID: uuid.New(),CreatedAt: time.Now(), UpdatedAt: time.Now(), Name: feedName, Url: feedURL, UserID: user_id }
+	_,err = s.db.CreateFeed(context.Background(), cfParams)
+	if err != nil {
+		return err 
+	}
+	fmt.Printf("%s Feed added successfully\n",feedName)
+	feedFollowParams := database.CreateFeedFollowParams{ID: uuid.New(), CreatedAt: cfParams.CreatedAt, UpdatedAt: cfParams.UpdatedAt, UserID: cfParams.UserID, FeedID: cfParams.ID}
+	_,err = s.db.CreateFeedFollow(context.Background(),feedFollowParams)
+	if err != nil {
+		return err 
+	}
+	return nil 
+
+
+}
+
+func handleGetAllFeeds(s *state, cmd command) error {
+	feeds,err := s.db.GetFeeds(context.Background())
+	if err != nil {
+		return err 
+	}
+	
+	for _,feed := range feeds {
+		dbUser, err := s.db.GetUserByid(context.Background(),feed.UserID)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s %s %s\n",feed.Name, feed.Url, dbUser.Name)
+	}
+	return nil 
+}
+
+func handleFeedFollow(s *state, cmd command) error {
+	if len(cmd.args) != 1 {
+		return fmt.Errorf("%s only takes one argument: %s <url>",cmd.name,cmd.name)
+	}
+	url := cmd.args[0]
+	user_id, err := s.db.GetUser(context.Background(), s.cfg.CURRENTUSER)
+	if err != nil {
+		return err 
+	}
+	feed_info,err := s.db.GetFeedIDByName(context.Background(), url)
+	if err != nil {
+		return err 
+	}
+	params := database.CreateFeedFollowParams{ID: uuid.New(),CreatedAt: time.Now(), UpdatedAt: time.Now(), UserID:user_id.ID, FeedID: feed_info.ID }
+	follow,err := s.db.CreateFeedFollow(context.Background(),params)
+	if err != nil {
+		return err 		
+	}
+	fmt.Printf("%s %s",follow.FeedName,follow.UserName)
+	return nil 
+}
+
+func handleFollowing(s *state, cmd command) error {
+	if len(cmd.args) != 0 {
+		return fmt.Errorf("%s takes no arguments",cmd.name)
+	}
+	userName := s.cfg.CURRENTUSER
+	dbUser,err := s.db.GetUser(context.Background(), userName)
+	if err != nil {
+		return err 
+	}
+	follows, err := s.db.GetFeedFollowsForUser(context.Background(), dbUser.ID)
+	if err != nil {
+		return err 
+	}
+	for _,value := range follows {
+		// u,err := s.db.GetUserByid(context.Background(), value.UserID)
+		// if err != nil {
+		// 	return err 
+		// }
+		feed_name, err := s.db.GetFeedsByID(context.Background(), value.FeedID)
+		if err != nil {
+			return err 
+		}
+		fmt.Printf("- %s\n",feed_name.Name)
+	}
+	return nil 
+}
+

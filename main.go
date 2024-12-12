@@ -18,6 +18,11 @@ func main() {
 	cmds.register("register",handlerRegister)
 	cmds.register("reset",handleReset)
 	cmds.register("users", handleGetUsers)
+	cmds.register("agg",handleFetchFeed)
+	cmds.register("addfeed",handleAddFeed)
+	cmds.register("feeds",handleGetAllFeeds)
+	cmds.register("follow", handleFeedFollow)
+	cmds.register("following",handleFollowing)
 
 	cfgFile, err := config.Read()
 	if err != nil {
