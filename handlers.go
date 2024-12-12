@@ -138,19 +138,19 @@ func returnStringFromHTML(htmlText string) string {
 	return html.UnescapeString(htmlText)
 }
 
-func handleAddFeed(s *state, cmd command) error {
+func handleAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 2 {
 		return fmt.Errorf("%s takes two arguments: %s <name> <url>", cmd.name, cmd.name)
 	}
 	feedName := cmd.args[0]
 	feedURL := cmd.args[1]
-	current_user,err  := s.db.GetUser(context.Background(),s.cfg.CURRENTUSER)
-	if err != nil {
-		return err 
-	}
-	user_id := current_user.ID
-	cfParams :=database.CreateFeedParams{ID: uuid.New(),CreatedAt: time.Now(), UpdatedAt: time.Now(), Name: feedName, Url: feedURL, UserID: user_id }
-	_,err = s.db.CreateFeed(context.Background(), cfParams)
+	// current_user,err  := s.db.GetUser(context.Background(),s.cfg.CURRENTUSER)
+	// if err != nil {
+	// 	return err 
+	// }
+	// user_id := current_user.ID
+	cfParams :=database.CreateFeedParams{ID: uuid.New(),CreatedAt: time.Now(), UpdatedAt: time.Now(), Name: feedName, Url: feedURL, UserID: user.ID }
+	_,err := s.db.CreateFeed(context.Background(), cfParams)
 	if err != nil {
 		return err 
 	}
@@ -181,20 +181,20 @@ func handleGetAllFeeds(s *state, cmd command) error {
 	return nil 
 }
 
-func handleFeedFollow(s *state, cmd command) error {
+func handleFeedFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 1 {
 		return fmt.Errorf("%s only takes one argument: %s <url>",cmd.name,cmd.name)
 	}
 	url := cmd.args[0]
-	user_id, err := s.db.GetUser(context.Background(), s.cfg.CURRENTUSER)
-	if err != nil {
-		return err 
-	}
+	// user_id, err := s.db.GetUser(context.Background(), s.cfg.CURRENTUSER)
+	// if err != nil {
+	// 	return err 
+	// }
 	feed_info,err := s.db.GetFeedIDByName(context.Background(), url)
 	if err != nil {
 		return err 
 	}
-	params := database.CreateFeedFollowParams{ID: uuid.New(),CreatedAt: time.Now(), UpdatedAt: time.Now(), UserID:user_id.ID, FeedID: feed_info.ID }
+	params := database.CreateFeedFollowParams{ID: uuid.New(),CreatedAt: time.Now(), UpdatedAt: time.Now(), UserID:user.ID, FeedID: feed_info.ID }
 	follow,err := s.db.CreateFeedFollow(context.Background(),params)
 	if err != nil {
 		return err 		
@@ -203,16 +203,16 @@ func handleFeedFollow(s *state, cmd command) error {
 	return nil 
 }
 
-func handleFollowing(s *state, cmd command) error {
+func handleFollowing(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 0 {
 		return fmt.Errorf("%s takes no arguments",cmd.name)
 	}
-	userName := s.cfg.CURRENTUSER
-	dbUser,err := s.db.GetUser(context.Background(), userName)
-	if err != nil {
-		return err 
-	}
-	follows, err := s.db.GetFeedFollowsForUser(context.Background(), dbUser.ID)
+	// userName := s.cfg.CURRENTUSER
+	// dbUser,err := s.db.GetUser(context.Background(), userName)
+	// if err != nil {
+	// 	return err 
+	// }
+	follows, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
 	if err != nil {
 		return err 
 	}
@@ -230,3 +230,42 @@ func handleFollowing(s *state, cmd command) error {
 	return nil 
 }
 
+func handleUnfollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) != 1{
+		return fmt.Errorf("%s accepts one argument: %s <url>",cmd.name, cmd.name)
+	}
+	url := cmd.args[0]
+	feedID, err := s.db.GetFeedIDByName(context.Background(),url)
+	if err != nil {
+		return err 
+	}
+	params := database.UnfollowParams{FeedID: feedID.ID, UserID: user.ID}
+	err = s.db.Unfollow(context.Background(), params)
+	if err != nil {
+		return err 
+	}
+	fmt.Printf("%s has been removed from %s", feedID.Name, user.Name)
+	return nil 
+
+}
+
+func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
+		
+
+
+
+	
+	return  func(s *state, cmd command) error {
+		
+		userName, err := s.db.GetUser(context.Background(), s.cfg.CURRENTUSER)
+		if err != nil {
+			return err
+		}
+		
+		return  handler(s,cmd,userName)
+
+	}
+
+
+
+}

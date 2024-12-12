@@ -47,3 +47,6 @@ select * from feeds where url = $1;
 
 -- name: GetFeedFollowsForUser :many
 select * from feed_follow where user_id = $1;
+
+-- name: Unfollow :exec
+delete from feed_follow where feed_id = $1 and user_id = $2;

@@ -19,10 +19,11 @@ func main() {
 	cmds.register("reset",handleReset)
 	cmds.register("users", handleGetUsers)
 	cmds.register("agg",handleFetchFeed)
-	cmds.register("addfeed",handleAddFeed)
+	cmds.register("addfeed",middlewareLoggedIn(handleAddFeed))
 	cmds.register("feeds",handleGetAllFeeds)
-	cmds.register("follow", handleFeedFollow)
-	cmds.register("following",handleFollowing)
+	cmds.register("follow", middlewareLoggedIn(handleFeedFollow))
+	cmds.register("following",middlewareLoggedIn(handleFollowing))
+	cmds.register("unfollow",middlewareLoggedIn(handleUnfollow))
 
 	cfgFile, err := config.Read()
 	if err != nil {
