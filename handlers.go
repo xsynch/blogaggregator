@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -139,12 +140,35 @@ func handleFetchFeed(s *state, cmd command) error {
 	if err != nil {
 		return err 
 	}
+	feedID, err := s.db.GetFeedIDByName(context.Background(), url)
+	if err != nil {
+		return err 
+	}
+	
 	fmt.Printf("%s\n",returnStringFromHTML(rssFeed.Channel.Title))
 	// fmt.Printf("%s\n",returnStringFromHTML(rssFeed.Channel.Link))
 	// fmt.Printf("%s\n",returnStringFromHTML(rssFeed.Channel.Description))
-	// for _,val := range rssFeed.Channel.Item{
-	// 	fmt.Printf("%s\n%s\n%s\n%s\n",returnStringFromHTML(val.Title), returnStringFromHTML(val.Link),returnStringFromHTML(val.Description),returnStringFromHTML(val.PubDate))
-	// }
+	for _,val := range rssFeed.Channel.Item{
+		// fmt.Printf("%s\n%s\n%s\n%s\n",returnStringFromHTML(val.Title), returnStringFromHTML(val.Link),returnStringFromHTML(val.Description),returnStringFromHTML(val.PubDate))
+		fmt.Printf("- Article Title: %s\n",val.Title)
+		pubDate,_ := time.Parse("2006",returnStringFromHTML(val.PubDate))
+		params := database.CreatePostParams{
+		ID: uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Title: returnStringFromHTML(val.Title),
+		Url: val.Link,
+		Description: sql.NullString{returnStringFromHTML(val.Description),true},
+		PublishedAt: sql.NullTime{pubDate,true},
+		FeedID: feedID.ID,
+		}
+		_,err = s.db.CreatePost(context.Background(),params)
+		if err != nil {
+			log.Printf("Error inserting data: %s",err)
+		}
+	}
+
+
 	
 }
 }
@@ -298,4 +322,27 @@ func scrapeFeeds(s *state) (string, error) {
 	return feed.Url,nil  
 
 	
+}
+
+func handleBrowse (s *state, cmd command, user database.User) error {
+	var numEntries int64 
+	var err error
+	if len(cmd.args) > 1 {
+		return fmt.Errorf("%s takes one argument, a number: %s <int>",cmd.name,cmd.name)
+	}
+	numEntries, err = strconv.ParseInt(cmd.args[0],10,32)
+	if err != nil{
+		log.Printf("Error parsing number, setting number of entries to return to 2: %s",err)
+		numEntries = 2
+	}
+
+	results, err := s.db.GetPostsForUser(context.Background(),database.GetPostsForUserParams{UserID: user.ID,Limit: int32(numEntries)})
+	if err != nil {
+		return err 
+	}
+	for _,val := range results {
+		fmt.Printf("%s\n \t%s\n",returnStringFromHTML(val.Title),val.Description.String)
+	}
+	return nil 
+
 }

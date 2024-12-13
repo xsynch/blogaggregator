@@ -24,6 +24,7 @@ func main() {
 	cmds.register("follow", middlewareLoggedIn(handleFeedFollow))
 	cmds.register("following",middlewareLoggedIn(handleFollowing))
 	cmds.register("unfollow",middlewareLoggedIn(handleUnfollow))
+	cmds.register("browse",middlewareLoggedIn(handleBrowse))
 
 	cfgFile, err := config.Read()
 	if err != nil {
