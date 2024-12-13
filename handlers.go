@@ -120,18 +120,33 @@ func handleGetUsers(s *state, cmd command) error {
 }
 
 func handleFetchFeed(s *state, cmd command) error {
-	url := "https://www.wagslane.dev/index.xml"
+	if len(cmd.args) != 1 {
+		return fmt.Errorf("%s takes a time duration for an argument: %s <time_between_requests>",cmd.name,cmd.name)
+	}
+	
+	timeBetweenRequests,err  := time.ParseDuration(cmd.args[0])
+	if err != nil {
+		return err 
+	}
+	fmt.Printf("Collecting feeds every %v seconds\n", timeBetweenRequests)
+	ticker := time.NewTicker(timeBetweenRequests)
+	for ; ; <-ticker.C {
+	url,err := scrapeFeeds(s)
+	if err != nil {
+		return err 
+	}
 	rssFeed, err := fetchFeed(context.Background(), url)
 	if err != nil {
 		return err 
 	}
 	fmt.Printf("%s\n",returnStringFromHTML(rssFeed.Channel.Title))
-	fmt.Printf("%s\n",returnStringFromHTML(rssFeed.Channel.Link))
-	fmt.Printf("%s\n",returnStringFromHTML(rssFeed.Channel.Description))
-	for _,val := range rssFeed.Channel.Item{
-		fmt.Printf("%s\n%s\n%s\n%s\n",returnStringFromHTML(val.Title), returnStringFromHTML(val.Link),returnStringFromHTML(val.Description),returnStringFromHTML(val.PubDate))
-	}
-	return nil 
+	// fmt.Printf("%s\n",returnStringFromHTML(rssFeed.Channel.Link))
+	// fmt.Printf("%s\n",returnStringFromHTML(rssFeed.Channel.Description))
+	// for _,val := range rssFeed.Channel.Item{
+	// 	fmt.Printf("%s\n%s\n%s\n%s\n",returnStringFromHTML(val.Title), returnStringFromHTML(val.Link),returnStringFromHTML(val.Description),returnStringFromHTML(val.PubDate))
+	// }
+	
+}
 }
 
 func returnStringFromHTML(htmlText string) string {
@@ -268,4 +283,19 @@ func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) 
 
 
 
+}
+
+func scrapeFeeds(s *state) (string, error) {
+	feed,err := s.db.GetNextFeedToFetch(context.Background())
+	if err != nil {
+		return "", err 
+	}
+	params := database.MarkFeedFetchedParams{LastFetchedAt: sql.NullTime{time.Now(),true}, ID: feed.ID}
+	err = s.db.MarkFeedFetched(context.Background(),params)
+	if err != nil {
+		return "",err 
+	}
+	return feed.Url,nil  
+
+	
 }
